@@ -1,5 +1,6 @@
 # app/services/api.py
 
+import json
 import requests
 
 FASTAPI_URL = "http://localhost:8000"
@@ -7,9 +8,10 @@ FASTAPI_URL = "http://localhost:8000"
 def handle_response(res):
     try:
         data = res.json()
-        if res.status_code == 200 and data.get("status") == "success":
+        if res.status_code == 200:
+            if data.get("status") == "error":
+                return {"error": data.get("message", f"오류: {res.status_code}")}
             return data.get("data") or data
-        return {"error": data.get("message", f"오류: {res.status_code}")}
     except Exception:
         return {"error": f"오류: {res.status_code}"}
 
@@ -28,16 +30,18 @@ def get_user_info(access_token):
     )
     return handle_response(res)
 
-def upload_pdf(username, course, file_obj, overwrite):
-    files = {"file": (file_obj.name, file_obj.getvalue(), "application/pdf")}
+# services/api.py
+
+def upload_pdfs(username, course, file_objs, overwrite_list):
+    files = [("files", (f.name, f.getvalue(), "application/pdf")) for f in file_objs]
     data = {
         "user": username,
         "course": course,
-        "filename": file_obj.name,
-        "overwrite": overwrite
+        "overwrite_files": json.dumps(overwrite_list)
     }
-    res = requests.post(f"{FASTAPI_URL}/upload_pdf", data=data, files=files)
+    res = requests.post(f"{FASTAPI_URL}/upload_pdfs", data=data, files=files)
     return handle_response(res)
+
 
 def analyze_pdf(file, username):
     files = {"file": (file.name, file.getvalue(), "application/pdf")}

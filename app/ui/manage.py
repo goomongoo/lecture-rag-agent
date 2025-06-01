@@ -6,7 +6,7 @@ from services.api import (
     delete_file,
     get_zip_download_url,
     get_webview_url,
-    upload_pdf,
+    upload_pdfs,
     analyze_pdf,
     create_course,
     list_courses,
@@ -93,7 +93,7 @@ def handle_single_upload(username, all_courses):
         if is_duplicate:
             st.warning(f"⚠️ '{single_file.name}' 파일은 이미 '{course_choice[0]}' 과목에 존재합니다. 덮어쓰시겠습니까?")
             if st.button("📄 덮어쓰기", key="single_overwrite"):
-                result = upload_pdf(username, course_choice[0], single_file, True)
+                result = upload_pdfs(username, course_choice[0], [single_file], True)
                 if isinstance(result, dict) and result.get("error"):
                     st.error(result["error"])
                     return
@@ -110,7 +110,7 @@ def handle_single_upload(username, all_courses):
                 st.rerun()
         else:
             if st.button("💾 저장", key="single_save"):
-                result = upload_pdf(username, course_choice[0], single_file, False)
+                result = upload_pdfs(username, course_choice[0], [single_file], False)
                 if isinstance(result, dict) and result.get("error"):
                     st.error(result["error"])
                     return
@@ -194,65 +194,67 @@ def handle_course_files(username, selected_course, files):
         handle_upload(username, selected_course)
 
 def handle_upload(username, selected_course):
-    uploaded_files = st.file_uploader("📄 한 번에 여러 PDF 파일을 업로드 할 수 있습니다.", type=["pdf"], accept_multiple_files=True)
+    if "upload_files" not in st.session_state:
+        st.session_state["upload_files"] = []
+    if "duplicated_files" not in st.session_state:
+        st.session_state["duplicated_files"] = []
+    if "overwrite_choices" not in st.session_state:
+        st.session_state["overwrite_choices"] = {}
 
-    if uploaded_files and st.button("💾 업로드 시작"):
-        duplicated_files = []
-        total = len(uploaded_files)
-        progress_bar = st.progress(0, text="업로드 진행 중...")
+    uploaded_files = st.file_uploader(
+        "📄 한 번에 여러 PDF 파일을 업로드 할 수 있습니다.",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="multi_upload_key"
+    )
 
-        for i, f in enumerate(uploaded_files):
-            is_duplicate = check_duplicate(username, selected_course, f.name)
-            if isinstance(is_duplicate, dict) and is_duplicate.get("error"):
-                st.error(is_duplicate["error"])
-                return
-            if is_duplicate:
-                duplicated_files.append(f)
-            else:
-                result = upload_pdf(username, selected_course, f, False)
-                if isinstance(result, dict) and result.get("error"):
-                    st.error(result["error"])
-                    return
-            progress = (i + 1) / total
-            progress_bar.progress(progress, text=f"{i + 1}/{total} 파일 업로드 진행중")
+    if uploaded_files:
+        # Save uploaded and duplicate states only once
+        if not st.session_state["upload_files"]:
+            to_upload = []
+            duplicated = []
+            for f in uploaded_files:
+                if check_duplicate(username, selected_course, f.name):
+                    duplicated.append(f)
+                else:
+                    to_upload.append(f)
+            st.session_state["upload_files"] = to_upload
+            st.session_state["duplicated_files"] = duplicated
 
-        progress_bar.empty()
+    if st.session_state["duplicated_files"]:
+        st.warning("⚠️ 중복된 파일이 있습니다. 덮어쓸 파일을 선택하세요.")
 
-        if duplicated_files:
-            st.warning("⚠️ 중복된 파일이 있습니다. 덮어쓸 파일을 선택한 뒤 업로드를 진행하세요.")
-            if "overwrite_checked" not in st.session_state:
-                st.session_state["overwrite_checked"] = {}
-            for f in duplicated_files:
-                key = f"overwrite_{f.name}"
-                st.session_state["overwrite_checked"][f.name] = st.checkbox(f.name, key=key)
+        overwrite_files = []
+        for f in st.session_state["duplicated_files"]:
+            key = f"overwrite_{f.name}"
+            checked = st.checkbox(f.name, key=key)
+            st.session_state["overwrite_choices"][f.name] = checked
+            if checked:
+                overwrite_files.append(f)
 
-            if st.button("📄 선택한 파일 덮어쓰기"):
-                files_to_overwrite = [f for f in duplicated_files if st.session_state["overwrite_checked"].get(f.name)]
-                total = len(files_to_overwrite)
-                progress_bar = st.progress(0, text="덮어쓰기 진행 중...")
+        if st.button("선택한 파일 덮어쓰기"):
+            final_uploads = st.session_state["upload_files"] + overwrite_files
+            result = upload_pdfs(username, selected_course, final_uploads, overwrite_files)
+            post_upload_cleanup(result)
 
-                for i, f in enumerate(files_to_overwrite):
-                    result = upload_pdf(username, selected_course, f, True)
-                    if isinstance(result, dict) and result.get("error"):
-                        st.error(result["error"])
-                        return
-                    progress = (i + 1) / total
-                    progress_bar.progress(progress, text=f"{i + 1}/{total} 파일 덮어쓰기 완료")
+        if st.button("건너뛰기"):
+            result = upload_pdfs(username, selected_course, st.session_state["upload_files"], [])
+            post_upload_cleanup(result)
 
-                progress_bar.empty()
+    elif st.session_state["upload_files"]:
+        if st.button("💾 업로드 시작"):
+            result = upload_pdfs(username, selected_course, st.session_state["upload_files"], [])
+            post_upload_cleanup(result)
 
-                st.success("✅ 덮어쓰기 완료. 벡터DB 정리중입니다.")
-                st.session_state.pop("overwrite_checked", None)
-                st.session_state["show_upload"] = False
-                if st.button("🔄 확인"):
-                    st.rerun()
+def post_upload_cleanup(result):
+    if isinstance(result, dict) and result.get("error"):
+        st.error(result["error"])
+    else:
+        st.success("✅ 업로드 완료. 벡터DB 정리중입니다.")
+        st.session_state["show_upload"] = False
+        st.session_state.pop("upload_files", None)
+        st.session_state.pop("duplicated_files", None)
+        st.session_state.pop("overwrite_choices", None)
+        if st.button("🔄 확인"):
+            st.rerun()
 
-            if st.button("❌ 취소"):
-                st.session_state.pop("overwrite_checked", None)
-                st.session_state["show_upload"] = False
-                st.rerun()
-        else:
-            st.success("✅ 업로드 완료. 벡터DB 정리중입니다.")
-            st.session_state["show_upload"] = False
-            if st.button("🔄 확인"):
-                st.rerun()
