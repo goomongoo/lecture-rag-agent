@@ -29,21 +29,6 @@ def save_temp_pdf(uploaded_file):
         return Path(tmp.name)
 
 
-def load_and_split_pdf(pdf_path: Path, filename: str):
-    loader = PyMuPDFLoader(str(pdf_path))
-    docs = loader.load()
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=100
-    )
-
-    chunks = splitter.split_documents(docs)
-    for c in chunks:
-        c.metadata["source"] = filename
-
-    return chunks
-
 def save_pdfs(files: List[UploadFile], user: str, course: str):
     save_dir = MATERIALS_DIR / user / course
     os.makedirs(save_dir, exist_ok=True)

@@ -40,7 +40,6 @@ def upload_pdfs(username, course, file_objs, overwrite_list):
     res = requests.post(f"{FASTAPI_URL}/upload_pdfs", data=data, files=files)
     return handle_response(res)
 
-
 def analyze_pdf(file, username):
     files = {"file": (file.name, file.getvalue(), "application/pdf")}
     data = {"user": username}
