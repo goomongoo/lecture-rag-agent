@@ -1,5 +1,6 @@
 # app/ui/chat.py
 
+import time
 import streamlit as st
 from services.api import (
     list_courses,
@@ -8,6 +9,7 @@ from services.api import (
     delete_session,
     generate_rag_answer,
     get_chat_log,
+    get_course_status
 )
 
 def chat_page():
@@ -75,6 +77,15 @@ def chat_page():
     # Main Chat Interface
     # -------------------------------
     st.markdown("# 💬 강의자료 Q&A")
+
+    remaining = get_course_status(username, course)
+    if remaining > 0:
+        placeholder = st.empty()
+        with placeholder.container():
+            st.warning(f"⚙️ '{course}' 과목 벡터 DB 정리 중입니다. 남은 파일: {remaining}")
+        time.sleep(3)
+        st.rerun()
+
 
     if "session_id" not in st.session_state:
         st.session_state["session_id"] = None

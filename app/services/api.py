@@ -19,9 +19,7 @@ def login_user(username, password):
         data={"username": username, "password": password},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
-    if response.status_code == 200:
-        return response.json()
-    return None
+    return response.json() if response.status_code == 200 else None
 
 def get_user_info(access_token):
     """
@@ -34,53 +32,40 @@ def get_user_info(access_token):
     return response.json() if response.status_code == 200 else None
 
 
-# -----------------------
-# PDF Analysis Operations
-# -----------------------
-
-def process_pdf(file, username):
-    """
-    Sends a PDF to the server for advanced processing.
-    """
-    files = {"file": (file.name, file.getvalue(), "application/pdf")}
-    data = {"user": username}
-    res = requests.post(f"{FASTAPI_URL}/process_pdf", files=files, data=data)
-    return res.json()
-
-def process_pdf_basic(file, user):
-    """
-    Sends a PDF for basic processing (less advanced than process_pdf).
-    """
-    files = {"file": (file.name, file, "application/pdf")}
-    data = {"user": user}
-    res = requests.post(f"{FASTAPI_URL}/process_pdf_basic", files=files, data=data)
-    return res.json()
-
-def save_pdf(payload: dict):
-    """
-    Saves processed PDF data on the server.
-    """
-    res = requests.post(f"{FASTAPI_URL}/save_pdf", json=payload)
-    return res.json()
-
-
 # -------------------------
 # File and Course Management
 # -------------------------
+
+def upload_pdf(username, course, file_obj, overwrite):
+    files = {"file": (file_obj.name, file_obj.getvalue(), "application/pdf")}
+    data = {
+        "user": username,
+        "course": course,
+        "filename": file_obj.name,
+        "overwrite": overwrite
+    }
+    res = requests.post(f"{FASTAPI_URL}/upload_pdf", data=data, files=files)
+    return res.json()
+
+
+def analyze_pdf(file, username):
+    files = {"file": (file.name, file.getvalue(), "application/pdf")}
+    data = {"user": username}
+    res = requests.post(f"{FASTAPI_URL}/analyze_pdf", files=files, data=data)
+    return res.json()
+
 
 def list_files(username):
     """
     Lists all files uploaded by a specific user.
     """
-    try:
-        res = requests.get(f"{FASTAPI_URL}/list_files", params={"user": username})
-        data = res.json()
-        if isinstance(data, list):
-            return data
-        else:
-            return []
-    except Exception:
+    res = requests.get(f"{FASTAPI_URL}/list_files", params={"user": username})
+    data = res.json()
+    if isinstance(data, list):
+        return data
+    else:
         return []
+
 
 def delete_file(username, course, filename):
     """
@@ -93,11 +78,13 @@ def delete_file(username, course, filename):
     })
     return res.json()
 
+
 def get_webview_url(username, course, filename):
     """
     Constructs a URL to view the file in the browser.
     """
     return f"{FASTAPI_URL}/view_file?user={username}&course={course}&filename={filename}"
+
 
 def get_zip_download_url(username, course):
     """
@@ -105,12 +92,19 @@ def get_zip_download_url(username, course):
     """
     return f"{FASTAPI_URL}/download_zip?user={username}&course={course}"
 
+
 def create_course(user, course):
-    """
-    Creates a new course for the user.
-    """
-    res = requests.post(f"{FASTAPI_URL}/create_course", json={"user": user, "course": course})
-    return res.json()
+    try:
+        res = requests.post(f"{FASTAPI_URL}/create_course", json={"user": user, "course": course})
+        if res.status_code == 200:
+            return {"status": "success"}
+        elif res.status_code == 400:
+            return {"status": "error", "message": "이미 존재하는 과목입니다."}
+        else:
+            return {"status": "error", "message": f"오류 발생: {res.status_code}"}
+    except requests.RequestException as e:
+        return {"status": "error", "message": str(e)}
+
 
 def list_courses(user):
     """
@@ -119,15 +113,23 @@ def list_courses(user):
     res = requests.get(f"{FASTAPI_URL}/list_courses", params={"user": user})
     return res.json()
 
+
 def delete_course(user, course):
-    """
-    Deletes a specific course for the user.
-    """
-    res = requests.delete(
-        f"{FASTAPI_URL}/delete_course",
-        params={"user": user, "course": course},
-    )
-    return res.json()
+    try:
+        res = requests.delete(
+            f"{FASTAPI_URL}/delete_course",
+            params={"user": user, "course": course},
+        )
+
+        print(res.json())
+
+        if res.status_code == 200:
+            return res.json()
+        else:
+            return {"status": "error", "message": f"삭제 실패: {res.text}"}
+    except requests.RequestException as e:
+        return {"status": "error", "message": str(e)}
+
 
 def check_duplicate(user: str, course: str, filename: str) -> bool:
     """
@@ -140,6 +142,16 @@ def check_duplicate(user: str, course: str, filename: str) -> bool:
     }
     res = requests.post(f"{FASTAPI_URL}/check_duplicate", json=payload)
     return res.json().get("duplicate", False)
+
+
+def get_course_status(user: str, course: str) -> int:
+    try:
+        res = requests.get(f"{FASTAPI_URL}/course_status", params={"user": user, "course": course})
+        if res.status_code == 200:
+            return res.json().get("remaining", 0)
+        return 0
+    except Exception:
+        return 0
 
 
 # -------------------------
@@ -171,7 +183,7 @@ def generate_rag_answer(user, course, session_id, question):
 # Chat Session Management
 # -------------------------
 
-def create_session(user, course, session_name=None):
+def create_session(user, course):
     """
     Creates a new chat session for the user/course.
     """
@@ -179,17 +191,14 @@ def create_session(user, course, session_name=None):
     res = requests.post(f"{FASTAPI_URL}/chat/session", json=payload)
     return res.json()["session_id"]
 
+
 def list_sessions(user, course):
     """
     Lists all chat sessions for a course and user.
     """
     res = requests.get(f"{FASTAPI_URL}/chat/sessions", params={"user": user, "course": course})
-    try:
-        return res.json()
-    except Exception as e:
-        print(f"[ERROR] list_sessions() JSON decode 실패: {e}")
-        print("응답 내용:", res.text)
-        return []
+    return res.json()
+
 
 def delete_session(user, course, session_id):
     """
@@ -200,6 +209,7 @@ def delete_session(user, course, session_id):
         params={"user": user, "course": course, "session_id": session_id}
     )
     return res.json()
+
 
 def update_chat_log(user, course, session_id, role, message):
     """
@@ -213,6 +223,7 @@ def update_chat_log(user, course, session_id, role, message):
         "message": message,
     }
     return requests.post(f"{FASTAPI_URL}/chat/log", json=payload).json()
+
 
 def get_chat_log(user, course, session_id):
     """

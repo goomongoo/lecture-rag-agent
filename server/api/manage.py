@@ -5,10 +5,15 @@ import shutil
 import tempfile
 from pathlib import Path
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Body, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
 from core.utils import remove_documents_by_source
+from core.state import get_status
+from core.rag_agent import delete_graphs_and_checkpoints_by_course
+from models.chat import ChatLog, SessionTitle
+from database import get_db
 
 
 # -------------------------------
@@ -48,6 +53,7 @@ def list_files(user: str):
                     "filename": file.name,
                     "path": str(file.relative_to(MATERIALS_DIR))
                 })
+
     return result
 
 
@@ -58,21 +64,19 @@ def delete_file(user: str, course: str, filename: str):
     Also removes the course folder if it becomes empty after deletion.
     """
     file_path = MATERIALS_DIR / user / course / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+    if file_path.exists():
+        os.remove(file_path)
+        remove_documents_by_source(user, course, filename)
 
-    os.remove(file_path)
-    remove_documents_by_source(user, course, filename)
+        course_dir = file_path.parent
+        if not any(course_dir.iterdir()):
+            course_dir.rmdir()
 
-    course_dir = file_path.parent
-    if not any(course_dir.iterdir()):
-        course_dir.rmdir()
-
-    return {"status": "success"}
+    return {"status": "success", "message": "File deleted or already absent."}
 
 
 @router.get("/view_file")
-def download_file(user: str, course: str, filename: str):
+def view_file(user: str, course: str, filename: str):
     """
     Returns the requested PDF file for inline browser viewing.
     Raises a 404 error if the file does not exist.
@@ -153,22 +157,35 @@ def list_courses(user: str):
 
 
 @router.delete("/delete_course")
-def delete_course(user: str, course: str):
+def delete_course(user: str, course: str, db: Session = Depends(get_db)):
     """
     Deletes the specified course folder and all files within it,
     and removes associated vectorstore data.
     """
     course_path = MATERIALS_DIR / user / course
     vectorstore_path = VECTOR_DIR / user / course
-    if not course_path.exists():
-        raise HTTPException(status_code=404, detail="과목 폴더가 존재하지 않습니다.")
+
     try:
-        shutil.rmtree(course_path)
+        if course_path.exists():
+            shutil.rmtree(course_path)
         if vectorstore_path.exists():
             shutil.rmtree(vectorstore_path)
-        return {"status": "success"}
+        
+        db.query(ChatLog).filter_by(user=user, course=course).delete()
+        db.query(SessionTitle).filter_by(user=user, course=course).delete()
+        db.commit()
+
+        delete_graphs_and_checkpoints_by_course(user, course)
+
+        return {"status": "success", "message": "Course deleted or already absent."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"과목 삭제 실패: {str(e)}")
+    
+
+@router.get("/course_status")
+def course_status(user: str, course: str):
+    remaining = get_status(user, course)
+    return {"remaining": remaining}
 
 
 # -------------------------------
