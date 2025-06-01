@@ -14,25 +14,12 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
 
-# -------------------------------
-# Configuration & Router Setup
-# -------------------------------
-
-# Initialize FastAPI router
 router = APIRouter()
 
-# Directory to store session logs (unused in DB-based mode)
 SESSION_DIR = Path("data/sessions")
 
 
-# -------------------------------
-# Request Models
-# -------------------------------
-
 class RagRequest(BaseModel):
-    """
-    Request schema for generating an answer using RAG.
-    """
     user: str
     course: str
     session_id: str
@@ -40,18 +27,12 @@ class RagRequest(BaseModel):
 
 
 class SessionCreateRequest(BaseModel):
-    """
-    Request schema for creating a new chat session.
-    """
     user: str
     course: str
     session_name: str | None = None
 
 
 class ChatLogRequest(BaseModel):
-    """
-    Request schema for updating the chat log.
-    """
     user: str
     course: str
     session_id: str
@@ -59,16 +40,8 @@ class ChatLogRequest(BaseModel):
     message: str
 
 
-# -------------------------------
-# Chat and Session Endpoints
-# -------------------------------
-
 @router.post("/chat/answer")
 def generate_rag_answer(req: RagRequest, db: Session = Depends(get_db)):
-    """
-    Generates an answer using Retrieval-Augmented Generation (RAG),
-    logs the Q&A to the database, and auto-generates a session title if needed.
-    """
     graph = get_or_create_graph(req.user, req.course, req.session_id)
     state = graph.invoke({"input": req.question}, config={"thread_id": f"{req.user}:{req.course}:{req.session_id}"})
     answer = state["answer"].strip()
@@ -81,11 +54,9 @@ def generate_rag_answer(req: RagRequest, db: Session = Depends(get_db)):
         } for doc in raw_context
     ]
 
-    # Log user question and assistant answer
     db.add(ChatLog(user=req.user, course=req.course, session_id=req.session_id, role="user", message=req.question))
     db.add(ChatLog(user=req.user, course=req.course, session_id=req.session_id, role="assistant", message=answer, context=json.dumps(serializable_context)))
 
-    # Auto-generate session title if it's a new session
     existing_title = db.query(SessionTitle).filter_by(
         user=req.user, course=req.course, session_id=req.session_id
     ).first()
@@ -107,9 +78,6 @@ def generate_rag_answer(req: RagRequest, db: Session = Depends(get_db)):
 
 @router.post("/chat/session")
 def create_session(req: SessionCreateRequest, db: Session = Depends(get_db)):
-    """
-    Creates a new session entry in the database with a placeholder title.
-    """
     session_id = str(uuid.uuid4())
 
     db.add(SessionTitle(
@@ -125,10 +93,6 @@ def create_session(req: SessionCreateRequest, db: Session = Depends(get_db)):
 
 @router.get("/chat/sessions")
 def list_sessions(user: str, course: str, db: Session = Depends(get_db)):
-    """
-    Returns a list of all chat sessions for a given user and course.
-    Each session includes its ID and current title.
-    """
     results = (
         db.query(SessionTitle.session_id, SessionTitle.title)
         .filter_by(user=user, course=course)
@@ -140,9 +104,6 @@ def list_sessions(user: str, course: str, db: Session = Depends(get_db)):
 
 @router.delete("/chat/session")
 def delete_session(user: str, course: str, session_id: str, db: Session = Depends(get_db)):
-    """
-    Deletes a specific chat session and its associated logs from the database.
-    """
     db.query(ChatLog).filter_by(user=user, course=course, session_id=session_id).delete()
     db.query(SessionTitle).filter_by(user=user, course=course, session_id=session_id).delete()
     db.commit()
@@ -151,9 +112,6 @@ def delete_session(user: str, course: str, session_id: str, db: Session = Depend
 
 @router.post("/chat/log")
 def update_chat_log(req: ChatLogRequest, db: Session = Depends(get_db)):
-    """
-    Appends a single chat message (from user or assistant) to the session log.
-    """
     log = ChatLog(
         user=req.user,
         course=req.course,
@@ -169,9 +127,6 @@ def update_chat_log(req: ChatLogRequest, db: Session = Depends(get_db)):
 
 @router.get("/chat/log")
 def get_chat_log(user: str, course: str, session_id: str, db: Session = Depends(get_db)):
-    """
-    Retrieves all chat messages for a given session, sorted by timestamp.
-    """
     logs = (
         db.query(ChatLog)
         .filter_by(user=user, course=course, session_id=session_id)

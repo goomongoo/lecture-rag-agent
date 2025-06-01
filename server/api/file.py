@@ -2,9 +2,6 @@
 
 from fastapi import APIRouter, UploadFile, File, Form
 from fastapi import BackgroundTasks
-from langchain_core.documents import Document
-
-# Business logic & utility imports
 from api.manage import list_courses
 from core.state import mark_processing, mark_done
 from core.utils import (
@@ -17,17 +14,7 @@ from core.utils import (
 )
 
 
-# -------------------------------
-# Router Initialization
-# -------------------------------
-
-# Initialize FastAPI router
 router = APIRouter()
-
-
-# -------------------------------
-# PDF Processing/Saving Endpoint
-# -------------------------------
 
 @router.post("/upload_pdf")
 def upload_pdf(

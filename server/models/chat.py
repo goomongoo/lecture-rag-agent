@@ -5,15 +5,7 @@ from datetime import datetime
 from . import Base
 
 
-# -------------------------------
-# Chat Log Model
-# -------------------------------
-
 class ChatLog(Base):
-    """
-    Database model for individual chat messages.
-    Stores message role (user or assistant), content, and timestamp.
-    """
     __tablename__ = "chat_logs"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -26,15 +18,7 @@ class ChatLog(Base):
     context = Column(Text, nullable=True)
 
 
-# -------------------------------
-# Session Title Model
-# -------------------------------
-
 class SessionTitle(Base):
-    """
-    Database model for chat session metadata.
-    Stores user, course, session ID, and the human-readable session title.
-    """
     __tablename__ = "session_titles"
 
     id = Column(Integer, primary_key=True, index=True)

@@ -6,49 +6,29 @@ import tempfile
 import json
 from pathlib import Path
 from fastapi import UploadFile
-
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 from core.state import with_faiss_lock
 
 
-# -------------------------------
-# Configuration & Models
-# -------------------------------
-
-# Initialize embedding model
 embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
 
-# Base directories for materials and vector stores
 DATA_ROOT = Path("data")
 MATERIALS_DIR = DATA_ROOT / "materials"
 VECTOR_DIR = DATA_ROOT / "vectorstores"
 
 
-# -------------------------------
-# PDF Handling Functions
-# -------------------------------
-
 def save_temp_pdf(uploaded_file):
-    """
-    Saves an uploaded PDF to a temporary file.
-    Returns the file path of the saved PDF.
-    """
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         shutil.copyfileobj(uploaded_file.file, tmp)
         return Path(tmp.name)
 
 
 def load_and_split_pdf(pdf_path: Path, filename: str):
-    """
-    Loads a PDF file and splits its content into text chunks.
-    Uses RecursiveCharacterTextSplitter for semantic chunking.
-    """
     loader = PyMuPDFLoader(str(pdf_path))
     docs = loader.load()
 
@@ -85,15 +65,7 @@ def move_pdf_to_course_folder(temp_path: Path, user: str, course: str, filename:
     return file_path
 
 
-# -------------------------------
-# Course Extraction Using GPT
-# -------------------------------
-
 def extract_course(text: str, existing_courses: list[str]) -> list[str]:
-    """
-    Uses GPT to infer at least 3 candidate course names from the given text.
-    Suggests relevant existing courses first, and fills with inferred ones.
-    """
     model = ChatOpenAI(model="gpt-4o-mini")
 
     system_prompt = (
@@ -126,15 +98,7 @@ def extract_course(text: str, existing_courses: list[str]) -> list[str]:
         return ["과목명을 입력해주세요"]
 
 
-# -------------------------------
-# Embedding & Vector Store Functions
-# -------------------------------
-
 def embed_and_store_chunks(user: str, course: str, chunks: list[Document]):
-    """
-    Embeds document chunks and stores them in the FAISS vector index.
-    Updates the existing index if it exists; otherwise, creates a new one.
-    """
     lock = with_faiss_lock(user, course)
 
     with lock:
@@ -151,10 +115,6 @@ def embed_and_store_chunks(user: str, course: str, chunks: list[Document]):
 
 
 def remove_documents_by_source(user: str, course: str, filename: str):
-    """
-    Removes all vectors in the FAISS index that originated from a specific PDF file.
-    Deletes the entire index folder if it becomes empty afterward.
-    """
     lock = with_faiss_lock(user, course)
 
     with lock:
@@ -165,7 +125,6 @@ def remove_documents_by_source(user: str, course: str, filename: str):
         faiss_index = FAISS.load_local(str(index_path), embedding_model, allow_dangerous_deserialization=True)
         all_docs = list(faiss_index.docstore._dict.values())
 
-        # Filter out documents by file name
         remaining_docs = [
             doc for doc in all_docs if doc.metadata.get("source") != filename
         ]
