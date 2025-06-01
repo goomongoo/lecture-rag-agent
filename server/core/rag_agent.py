@@ -67,6 +67,9 @@ def load_retriever(user: str, course: str, k=5):
         loader = PyMuPDFLoader(str(file))
         documents += loader.load()
 
+    if not documents:
+        raise ValueError("해당 과목에는 강의자료가 없습니다.")
+
     bm25 = BM25Retriever.from_documents(documents)
     bm25.k = k
 
@@ -136,3 +139,9 @@ def delete_graphs_and_checkpoints_by_course(user: str, course: str):
             pass
         else:
             raise
+
+def refresh_graph(user: str, course: str):
+    prefix = f"{user}:{course}:"
+    for key in list(graph_checkpoints.keys()):
+        if key.startswith(prefix):
+            del graph_checkpoints[key]

@@ -7,22 +7,17 @@ from dotenv import load_dotenv
 from streamlit_cookies_manager import EncryptedCookieManager
 from services.api import login_user
 
-
 load_dotenv()
-
 
 FASTAPI_URL = "http://localhost:8000"
 COOKIE_PASSWORD = os.getenv("COOKIE_PASSWORD")
-
 
 cookies = EncryptedCookieManager(password=COOKIE_PASSWORD)
 if not cookies.ready():
     st.stop()
 
-
 def logout():
     cookies.clear()
-
 
 def login_page():
     st.title("🔐 로그인")
@@ -41,7 +36,6 @@ def login_page():
     else:
         show_login_form()
 
-
 def show_login_form():
     with st.form("login_form"):
         username = st.text_input("아이디")
@@ -51,7 +45,9 @@ def show_login_form():
     if submitted:
         with st.spinner("로그인 중..."):
             result = login_user(username, password)
-            if result:
+            if isinstance(result, dict) and result.get("error"):
+                st.error(f"❌ 로그인 실패: {result['error']}")
+            else:
                 st.session_state["access_token"] = result["access_token"]
                 st.session_state["username"] = username
                 cookies["access_token"] = result["access_token"]
@@ -60,13 +56,10 @@ def show_login_form():
 
                 st.success("✅ 로그인 성공!")
                 st.rerun()
-            else:
-                st.error("❌ 로그인 실패: 아이디 또는 비밀번호를 확인해주세요.")
 
     if st.button("회원가입"):
         st.session_state["show_register"] = True
         st.rerun()
-
 
 def show_register_form():
     st.subheader("📝 회원가입")
@@ -80,12 +73,16 @@ def show_register_form():
                 f"{FASTAPI_URL}/register",
                 json={"username": new_user, "password": new_pass}
             )
-            if res.status_code == 200:
-                st.success("🎉 회원가입 성공! 이제 로그인해주세요.")
-                st.session_state["show_register"] = False
-                st.rerun()
-            else:
-                st.error(f"❌ 실패: {res.json().get('detail', '오류 발생')}")
+            try:
+                data = res.json()
+                if res.status_code == 200 and data.get("message") == "회원가입 성공":
+                    st.success("🎉 회원가입 성공! 이제 로그인해주세요.")
+                    st.session_state["show_register"] = False
+                    st.rerun()
+                else:
+                    st.error(f"❌ 실패: {data.get('detail', data.get('message', '오류 발생'))}")
+            except Exception:
+                st.error("❌ 회원가입 실패: 서버 오류")
 
     if st.button("← 로그인으로 돌아가기"):
         st.session_state["show_register"] = False

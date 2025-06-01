@@ -19,7 +19,7 @@ def main_page():
 
     if st.sidebar.button("📁 강의자료 관리"):
         st.session_state["page"] = "manage"
-    if st.sidebar.button("💬 강의자료 기반 Q&A"):
+    if st.sidebar.button("💬 강의자료 Q&A"):
         st.session_state["page"] = "chat"
     if st.sidebar.button("🔓 로그아웃"):
         logout()
