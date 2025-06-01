@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 import json
+from typing import List
 from pathlib import Path
 from fastapi import UploadFile
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -43,26 +44,35 @@ def load_and_split_pdf(pdf_path: Path, filename: str):
 
     return chunks
 
-
-def save_pdf_to_course_folder(uploadfile: UploadFile, user: str, course: str) -> Path:
+def save_pdfs(files: List[UploadFile], user: str, course: str):
     save_dir = MATERIALS_DIR / user / course
     os.makedirs(save_dir, exist_ok=True)
-    file_path = save_dir / uploadfile.filename
+    saved_paths = []
 
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(uploadfile.file, buffer)
+    for file in files:
+        path = save_dir / file.filename
+        with path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        saved_paths.append(path)
     
-    return file_path
+    return saved_paths
 
 
-def move_pdf_to_course_folder(temp_path: Path, user: str, course: str, filename: str) -> Path:
-    save_dir = MATERIALS_DIR / user / course
-    os.makedirs(save_dir, exist_ok=True)
-    file_path = save_dir / filename
+def parse_pdfs(paths: List[Path]):
+    all_chunks = []
+
+    for path in paths:
+        loader = PyMuPDFLoader(str(path))
+        docs = loader.load()
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+        chunks = splitter.split_documents(docs)
+
+        for c in chunks:
+            c.metadata["source"] = path.name
+
+        all_chunks.extend(chunks)
     
-    shutil.move(temp_path, file_path)
-
-    return file_path
+    return all_chunks
 
 
 def extract_course(text: str, existing_courses: list[str]) -> list[str]:

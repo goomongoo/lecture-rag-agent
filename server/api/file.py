@@ -8,12 +8,12 @@ from api.manage import list_courses
 from core.state import mark_processing, mark_done
 from core.rag_agent import refresh_graph
 from core.utils import (
-    save_pdf_to_course_folder,
-    load_and_split_pdf,
     embed_and_store_chunks,
     remove_documents_by_source,
     save_temp_pdf,
     extract_course,
+    save_pdfs,
+    parse_pdfs
 )
 
 router = APIRouter()
@@ -28,24 +28,18 @@ def upload_pdfs(
 ):
     try:
         overwrite_list = json.loads(overwrite_files)
-        all_chunks = []
-        saved_paths = []
+        saved_paths = save_pdfs(files, user, course)
 
         for file in files:
-            saved_path = save_pdf_to_course_folder(file, user, course)
-            saved_paths.append(str(saved_path))
-
             if file.filename in overwrite_list:
                 remove_documents_by_source(user, course, file.filename)
-
-            chunks = load_and_split_pdf(saved_path, file.filename)
-            all_chunks.extend(chunks)
 
         mark_processing(user, course)
 
         def background_embedding():
             try:
                 refresh_graph(user, course)
+                all_chunks = parse_pdfs(saved_paths)
                 embed_and_store_chunks(user, course, all_chunks)
             finally:
                 mark_done(user, course)
@@ -71,7 +65,7 @@ def upload_pdfs(
 def analyze_pdf(file: UploadFile = File(...), user: str = Form(...)):
     try:
         temp_path = save_temp_pdf(file)
-        chunks = load_and_split_pdf(temp_path, file.filename)
+        chunks = parse_pdfs([temp_path])
         existing_course = list_courses(user)
         course_candidates = extract_course(chunks[0].page_content, existing_course)
 

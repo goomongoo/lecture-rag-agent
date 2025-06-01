@@ -30,8 +30,6 @@ def get_user_info(access_token):
     )
     return handle_response(res)
 
-# services/api.py
-
 def upload_pdfs(username, course, file_objs, overwrite_list):
     files = [("files", (f.name, f.getvalue(), "application/pdf")) for f in file_objs]
     data = {

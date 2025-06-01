@@ -93,7 +93,7 @@ def handle_single_upload(username, all_courses):
         if is_duplicate:
             st.warning(f"⚠️ '{single_file.name}' 파일은 이미 '{course_choice[0]}' 과목에 존재합니다. 덮어쓰시겠습니까?")
             if st.button("📄 덮어쓰기", key="single_overwrite"):
-                result = upload_pdfs(username, course_choice[0], [single_file], True)
+                result = upload_pdfs(username, course_choice[0], [single_file], [])
                 if isinstance(result, dict) and result.get("error"):
                     st.error(result["error"])
                     return
@@ -110,7 +110,7 @@ def handle_single_upload(username, all_courses):
                 st.rerun()
         else:
             if st.button("💾 저장", key="single_save"):
-                result = upload_pdfs(username, course_choice[0], [single_file], False)
+                result = upload_pdfs(username, course_choice[0], [single_file], [])
                 if isinstance(result, dict) and result.get("error"):
                     st.error(result["error"])
                     return
@@ -209,7 +209,6 @@ def handle_upload(username, selected_course):
     )
 
     if uploaded_files:
-        # Save uploaded and duplicate states only once
         if not st.session_state["upload_files"]:
             to_upload = []
             duplicated = []
@@ -234,7 +233,7 @@ def handle_upload(username, selected_course):
 
         if st.button("선택한 파일 덮어쓰기"):
             final_uploads = st.session_state["upload_files"] + overwrite_files
-            result = upload_pdfs(username, selected_course, final_uploads, overwrite_files)
+            result = upload_pdfs(username, selected_course, final_uploads, [f.name for f in overwrite_files])
             post_upload_cleanup(result)
 
         if st.button("건너뛰기"):

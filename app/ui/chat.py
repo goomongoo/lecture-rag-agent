@@ -83,7 +83,7 @@ def chat_page():
     if remaining > 0:
         placeholder = st.empty()
         with placeholder.container():
-            st.warning(f"⚙️ '{course}' 과목 벡터 DB 정리 중입니다. 남은 파일: {remaining}")
+            st.warning(f"⚙️ '{course}' 과목 벡터 DB 정리 중입니다. 잠시만 기다려주세요...")
         time.sleep(3)
         st.rerun()
 
