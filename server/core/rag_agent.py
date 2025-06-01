@@ -170,3 +170,23 @@ def get_or_create_graph(user: str, course: str, session_id: str):
         graph = build_rag_graph(user, course)
         graph_checkpoints[key] = graph
     return graph_checkpoints[key]
+
+
+def delete_graphs_and_checkpoints_by_course(user: str, course: str):
+    prefix = f"{user}:{course}:"
+    to_delete = [key for key in graph_checkpoints if key.startswith(prefix)]
+    for key in to_delete:
+        del graph_checkpoints[key]
+    
+    engine = get_db_engine()
+    try:
+        with sqlite3.connect(engine.url.database, check_same_thread=False) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM checkpoints WHERE thread_id LIKE ?", (f"{prefix}%",))
+            cursor.execute("DELETE FROM writes WHERE thread_id LIKE ?", (f"{prefix}%",))
+            conn.commit()
+    except sqlite3.OperationalError as e:
+        if "no such table" in str(e):
+            pass
+        else:
+            raise

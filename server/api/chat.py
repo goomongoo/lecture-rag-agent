@@ -70,7 +70,7 @@ def generate_rag_answer(req: RagRequest, db: Session = Depends(get_db)):
     logs the Q&A to the database, and auto-generates a session title if needed.
     """
     graph = get_or_create_graph(req.user, req.course, req.session_id)
-    state = graph.invoke({"input": req.question}, config={"thread_id": req.session_id})
+    state = graph.invoke({"input": req.question}, config={"thread_id": f"{req.user}:{req.course}:{req.session_id}"})
     answer = state["answer"].strip()
 
     raw_context = state.get("context", [])

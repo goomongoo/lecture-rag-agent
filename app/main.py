@@ -44,7 +44,7 @@ def main_page():
         st.rerun()
 
     # Render selected page
-    page = st.session_state.get("page", "manage")
+    page = st.session_state.get("page", "chat")
     if page == "manage":
         manage_page()
     elif page == "chat":
