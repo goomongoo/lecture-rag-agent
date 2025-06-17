@@ -71,7 +71,8 @@ def create_course(user, course):
 
 def list_courses(user):
     res = requests.get(f"{FASTAPI_URL}/list_courses", params={"user": user})
-    return handle_response(res)
+    data = handle_response(res)
+    return data.get("data", []) if isinstance(data, dict) else data
 
 def delete_course(user, course):
     res = requests.delete(

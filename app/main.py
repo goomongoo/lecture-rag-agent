@@ -10,9 +10,9 @@ from ui.chat import chat_page
 load_dotenv()
 
 
-def main_page():
-    st.set_page_config(page_title="딱알이", layout="wide")
+#st.set_page_config(page_title="딱알이", layout="wide")
 
+def main_page():
     st.title(f"안녕하세요, {st.session_state['username']}님!")
 
     st.sidebar.markdown("## 📋 메뉴")

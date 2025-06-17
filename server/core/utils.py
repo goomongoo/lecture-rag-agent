@@ -13,6 +13,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import (
+    AcceleratorDevice,
+    AcceleratorOptions,
+    PdfPipelineOptions,
+)
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from core.state import with_faiss_lock
 
 
@@ -46,18 +53,55 @@ def save_pdfs(files: List[UploadFile], user: str, course: str):
 def parse_pdfs(paths: List[Path]):
     all_chunks = []
 
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.do_ocr = True
+    pipeline_options.do_table_structure = True
+    pipeline_options.ocr_options.lang = ["es"]
+    pipeline_options.accelerator_options = AcceleratorOptions(
+        num_threads=4, device=AcceleratorDevice.AUTO
+    )
+
+    doc_converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
+
+    markdown_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=100,
+        separators=[
+        "\n\n```",                 
+        "\n```",                  
+        "\n\n<!-- image -->\n\n",  
+        "\n\n### ",                
+        "\n\n## ",
+        "\n\n# ",
+        "\n\n- ", "\n\n* ", "\n\n1. ",
+        "\n\n", "\n", " ", ""
+        ]
+    )
+
     for path in paths:
-        loader = PyMuPDFLoader(str(path))
-        docs = loader.load()
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-        chunks = splitter.split_documents(docs)
-
-        for c in chunks:
-            c.metadata["source"] = path.name
-
+        conv_result = doc_converter.convert(path)
+        markdown_text = conv_result.document.export_to_markdown()
+        doc = Document(
+            page_content=markdown_text,
+            metadata={"source": path.name}
+        )
+        chunks = markdown_splitter.split_documents([doc])
         all_chunks.extend(chunks)
     
     return all_chunks
+
+
+def get_first_chunk_textonly(path: Path):
+    loader = PyMuPDFLoader(str(path))
+    docs = loader.load()
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
+    chunks = splitter.split_documents(docs)
+
+    return chunks[0]
 
 
 def extract_course(text: str, existing_courses: list[str]) -> list[str]:

@@ -13,7 +13,8 @@ from core.utils import (
     save_temp_pdf,
     extract_course,
     save_pdfs,
-    parse_pdfs
+    parse_pdfs,
+    get_first_chunk_textonly
 )
 
 router = APIRouter()
@@ -65,9 +66,9 @@ def upload_pdfs(
 def analyze_pdf(file: UploadFile = File(...), user: str = Form(...)):
     try:
         temp_path = save_temp_pdf(file)
-        chunks = parse_pdfs([temp_path])
+        chunk = get_first_chunk_textonly(temp_path)
         existing_course = list_courses(user)
-        course_candidates = extract_course(chunks[0].page_content, existing_course)
+        course_candidates = extract_course(chunk.page_content, existing_course)
 
         if temp_path.exists():
             temp_path.unlink()
