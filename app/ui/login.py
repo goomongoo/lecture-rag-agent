@@ -15,6 +15,7 @@ COOKIE_PASSWORD = os.getenv("COOKIE_PASSWORD")
 cookies = EncryptedCookieManager(password=COOKIE_PASSWORD)
 if not cookies.ready():
     st.stop()
+#cookies.clear()
 
 def logout():
     cookies.clear()
