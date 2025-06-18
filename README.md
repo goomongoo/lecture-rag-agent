@@ -1,6 +1,6 @@
 # 딱알이
 
-딱알이는 사용자가 강의자료(PDF)를 업로드하면 과목을 자동 분류하고, 문서를 임베딩하여 강의자료 기반 Q&A 기능을 제공하는 시스템임.  
+딱알이는 사용자가 강의자료(PDF)를 업로드하면 과목을 자동 분류하고, 문서를 임베딩하여 강의자료 기반 Q&A 기능을 제공하는 시스템.  
 Streamlit 프론트엔드와 FastAPI 백엔드로 구성되며, LangChain, FAISS, OpenAI API를 활용한 Retrieval-Augmented Generation(RAG) 구조를 따름.
 
 ---
@@ -135,8 +135,6 @@ BERTScore_F1 : 0.6648
 ## 개선 사항 및 고려사항
 
 - UpstageAI의 Document Parsing API를 활용하면 문서 처리 속도를 크게 단축할 수 있으나, **API 호출 시 비용이 발생**함
-- 세션 요약 기능, 사용자 맞춤 피드백 기능 추가 가능
-- 사용자별 벡터 인덱스에 대한 동시 접근 시 처리 안정성 향상이 필요함
 
 ---
 
@@ -146,7 +144,6 @@ BERTScore_F1 : 0.6648
 - 프론트엔드: Streamlit
 - RAG: LangChain, LangGraph, OpenAI GPT-4o, FAISS
 - 문서 처리: Docling, PyMuPDF
-- 평가: BERTScore, Recall@k, MRR, nDCG
 
 ---
 
